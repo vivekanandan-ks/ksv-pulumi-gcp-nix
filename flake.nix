@@ -1,78 +1,62 @@
 {
-  description = "KSV pulumi project";
+  description = "Pulumi Python + Google Cloud Development Shell";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
-    flake-utils.url = "github:numtide/flake-utils";
-    gitignore = {
-      url = "github:hercules-ci/gitignore.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
-  outputs = { self, nixpkgs, flake-utils, gitignore, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        inherit (gitignore.lib) gitignoreSource;
-        pkgs = import nixpkgs { 
-          inherit system;
+  outputs =
+    inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      # Support standard Linux and Darwin systems
+      systems = [
+        "x86_64-linux"
+        #"aarch64-linux"
+        #"aarch64-darwin"
+        #"x86_64-darwin"
+      ];
+
+      perSystem =
+        { pkgs, ... }:
+        {
+          devShells.default =
+            let
+
+              python = pkgs.python313;
+
+            in
+            pkgs.mkShell {
+              # The tools available in your shell
+              packages = with pkgs; [
+
+                (python.withPackages (
+                  ps: with ps; [
+                    # python dependencies here
+                    #pulumi
+
+                  ]
+                ))
+
+                pulumi-bin # Infrastructure as Code tool
+                pulumiPackages.pulumi-python
+                google-cloud-sdk # GCP CLI (needed for authentication)
+                #uv # Fast Python package installer (modern replacement for pip/poetry)
+              ];
+
+              /*
+                env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+                  pkgs.stdenv.cc.cc.lib
+                  pkgs.libz
+                ];
+              */
+
+              # Instructions printed when entering the shell
+              shellHook = /* bash */ ''
+                echo "☁️  Pulumi Python + GCP Shell Activated"
+                echo "1. Authenticate GCP: gcloud auth application-default login"
+              '';
+            };
         };
-
-      in {
-
-        devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
-            #pulumi
-            python3
-            pulumi-bin
-            pulumiPackages.pulumi-python
-            #awscli2
-            uv
-            
-          ];
-          
-          env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-            pkgs.stdenv.cc.cc.lib
-            pkgs.libz
-          ];
-
-          shellHook = ''
-            echo "welcome to the pulumi shell created by https://github.com/vivekanandan-ks" | ${pkgs.cowsay}/bin/cowsay
-            #my custom fish shel prompt customized (comment below to use defualt bash)
-            exec ${pkgs.fish}/bin/fish --init-command '
-            function fish_prompt
-                # Get exit status of last command
-                set -l last_status $status
-                if test $last_status -eq 0
-                    set_color green
-                    echo -n "✓ "
-                else
-                    set_color red
-                    echo -n "$last_status "
-                end
-                set_color normal
-
-                # Show current directory
-                set_color blue
-                echo -n (prompt_pwd)
-                set_color normal
-
-                # Get git branch name, if applicable
-                set -l git_branch (git symbolic-ref --short HEAD 2>/dev/null)
-                if test -n "$git_branch"
-                    set_color yellow
-                    echo -n "[$git_branch] "
-                    set_color normal
-                end
-
-                # Prompt prefix
-                set_color blue
-                echo -n "nix-shell🐠🐚> "
-                set_color normal
-            end
-            '
-
-            '';
-        };
-      });
+    };
 }
